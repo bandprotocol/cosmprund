@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -30,6 +31,26 @@ import (
 	"github.com/binaryholdings/cosmos-pruner/internal/rootmulti"
 )
 
+type pruningProfile struct {
+	name         string
+	blocks       int64
+	keepVersions int64
+	keepEvery    int64
+}
+
+var (
+	PruningProfiles = map[string]pruningProfile{
+		"default":    pruningProfile{"default", 300000, 500000, 0},
+		"emitter":    pruningProfile{"emitter", 300000, 100, 0},
+		"rest-light": pruningProfile{"rest-light", 600000, 100000, 0},
+		"rest-heavy": pruningProfile{"rest-heavy", 300000, 400000, 1000},
+		"peer":       pruningProfile{"peer", 300000, 100, 30000},
+		"seed":       pruningProfile{"seed", 300000, 100, 0},
+		"sentry":     pruningProfile{"sentry", 600000, 100, 0},
+		"validator":  pruningProfile{"validator", 600000, 100, 0},
+	}
+)
+
 // load db
 // load app store and prune
 // if immutable tree is not deletable we should import and export current state
@@ -41,16 +62,31 @@ func pruneCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			ctx := cmd.Context()
-			errs, _ := errgroup.WithContext(ctx)
+			if _, ok := PruningProfiles[profile]; !ok {
+				return fmt.Errorf("Invalid Pruning Profile")
+			}
+			if blocks < 0 {
+				blocks = PruningProfiles[profile].blocks
+			}
+			if keepVersions < 0 {
+				keepVersions = PruningProfiles[profile].keepVersions
+			}
+			if keepEvery < 0 {
+				keepEvery = PruningProfiles[profile].keepEvery
+			}
+
+			fmt.Println("profile: ", profile)
+			fmt.Println("pruning-keep-every: ", keepEvery)
+			fmt.Println("pruning-keep-recent: ", keepVersions)
+			fmt.Println("min-retain-blocks: ", blocks)
+			fmt.Println("batch: ", batch)
+			fmt.Println("parallel-limit: ", parallel)
+
 			var err error
 			if tendermint {
-				errs.Go(func() error {
-					if err = pruneTMData(args[0]); err != nil {
-						return err
-					}
-					return nil
-				})
+				if err = pruneTMData(args[0]); err != nil {
+					return err
+				}
 			}
 
 			if cosmosSdk {
@@ -62,7 +98,7 @@ func pruneCmd() *cobra.Command {
 
 			}
 
-			return errs.Wait()
+			return nil
 		},
 	}
 	return cmd
@@ -283,9 +319,9 @@ func pruneAppState(home string) error {
 			"feegrant", // feegrant.StoreKey,
 			"authz",    // authzkeeper.StoreKey,
 			// custom modules
-			"iscn",     // iscntypes.StoreKey,
-			"nft",      // nftkeeper.StoreKey,
-			"likenft",  // likenfttypes.StoreKey,
+			"iscn",    // iscntypes.StoreKey,
+			"nft",     // nftkeeper.StoreKey,
+			"likenft", // likenfttypes.StoreKey,
 		)
 
 		for key, value := range likecoinKeys {
@@ -301,7 +337,7 @@ func pruneAppState(home string) error {
 			"icahost",                // icahosttypes.StoreKey,
 			"wasm",                   // wasm.StoreKey,
 			// custom modules
-			"airdrop",                // airdroptypes.StoreKey,
+			"airdrop", // airdroptypes.StoreKey,
 		)
 
 		for key, value := range teritoriKeys {
@@ -311,21 +347,21 @@ func pruneAppState(home string) error {
 		// https://github.com/JackalLabs/canine-chain/blob/master/app/app.go#L347
 		jackalKeys := types.NewKVStoreKeys(
 			// common modules
-			"feegrant",               // feegrant.StoreKey,
-			"authz",                  // authzkeeper.StoreKey,
-			"wasm",                   // wasm.StoreKey,
-			"icahost",                // icahosttypes.StoreKey,
+			"feegrant", // feegrant.StoreKey,
+			"authz",    // authzkeeper.StoreKey,
+			"wasm",     // wasm.StoreKey,
+			"icahost",  // icahosttypes.StoreKey,
 			// custom modules
-			"icacontroller",          // icacontrollertypes.StoreKey, https://github.com/cosmos/ibc-go/blob/main/modules/apps/27-interchain-accounts/controller/types/keys.go#L5
+			"icacontroller", // icacontrollertypes.StoreKey, https://github.com/cosmos/ibc-go/blob/main/modules/apps/27-interchain-accounts/controller/types/keys.go#L5
 			// intertx is a demo and not an officially supported IBC team implementation
-			"intertx",                // intertxtypes.StoreKey, https://github.com/cosmos/interchain-accounts-demo/blob/8d4683081df0e1945be40be8ac18aa182106a660/x/inter-tx/types/keys.go#L4
-			"rns",                    // rnsmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/rns/types/keys.go#L5
-			"storage",                // storagemoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/storage/types/keys.go#L5
-			"dsig",                   // dsigmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/dsig/types/keys.go#L5
-			"filetree",               // filetreemoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/filetree/types/keys.go#L5
-			"notifications",          // notificationsmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/notifications/types/keys.go#L5
-			"jklmint",                // jklmintmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/jklmint/types/keys.go#L7
-			"lp",                     // lpmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/lp/types/keys.go#L5
+			"intertx",       // intertxtypes.StoreKey, https://github.com/cosmos/interchain-accounts-demo/blob/8d4683081df0e1945be40be8ac18aa182106a660/x/inter-tx/types/keys.go#L4
+			"rns",           // rnsmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/rns/types/keys.go#L5
+			"storage",       // storagemoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/storage/types/keys.go#L5
+			"dsig",          // dsigmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/dsig/types/keys.go#L5
+			"filetree",      // filetreemoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/filetree/types/keys.go#L5
+			"notifications", // notificationsmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/notifications/types/keys.go#L5
+			"jklmint",       // jklmintmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/jklmint/types/keys.go#L7
+			"lp",            // lpmoduletypes.StoreKey, https://github.com/JackalLabs/canine-chain/blob/master/x/lp/types/keys.go#L5
 		)
 
 		for key, value := range jackalKeys {
@@ -585,11 +621,11 @@ func pruneAppState(home string) error {
 	} else if app == "desmos" {
 		desmosKeys := types.NewKVStoreKeys(
 			// common modules
-			"feegrant",      // feegrant.StoreKey,
-			"wasm",          // wasm.StoreKey,
-			"authz",         // authzkeeper.StoreKey,
+			"feegrant", // feegrant.StoreKey,
+			"wasm",     // wasm.StoreKey,
+			"authz",    // authzkeeper.StoreKey,
 			// mainnet
-			"profiles",      // profilestypes.StoreKey,
+			"profiles", // profilestypes.StoreKey,
 			// testnet
 			"subspaces",     // subspacestypes.StoreKey,
 			"posts",         // poststypes.StoreKey,
@@ -604,30 +640,55 @@ func pruneAppState(home string) error {
 		}
 	}
 
-	// TODO: cleanup app state
-	appStore := rootmulti.NewStore(appDB)
+	wg := sync.WaitGroup{}
+	var prune_err error
 
+	guard := make(chan struct{}, parallel)
 	for _, value := range keys {
-		appStore.MountStoreWithDB(value, sdk.StoreTypeIAVL, nil)
+		guard <- struct{}{}
+		wg.Add(1)
+		go func(value *types.KVStoreKey) {
+			tmp_err := func(value *types.KVStoreKey) error {
+				// TODO: cleanup app state
+				appStore := rootmulti.NewStore(appDB)
+				appStore.MountStoreWithDB(value, sdk.StoreTypeIAVL, nil)
+				err = appStore.LoadLatestVersion()
+				if err != nil {
+					return err
+				}
+
+				versions := appStore.GetAllVersions()
+				if int(keepVersions) >= len(versions) {
+					return nil
+				}
+				versions = versions[:len(versions)-int(keepVersions)]
+
+				v64 := make([]int64, 0)
+				for i := 0; i < len(versions); i++ {
+					if keepEvery == 0 || versions[i]%int(keepEvery) != 0 {
+						v64 = append(v64, int64(versions[i]))
+					}
+				}
+
+				appStore.PruneHeights = v64[:]
+
+				appStore.PruneStores(int(batch))
+
+				return nil
+			}(value)
+
+			if tmp_err != nil {
+				prune_err = tmp_err
+			}
+			<-guard
+			defer wg.Done()
+		}(value)
 	}
+	wg.Wait()
 
-	err = appStore.LoadLatestVersion()
-	if err != nil {
-		return err
+	if prune_err != nil {
+		return prune_err
 	}
-
-	versions := appStore.GetAllVersions()
-
-	v64 := make([]int64, len(versions))
-	for i := 0; i < len(versions); i++ {
-		v64[i] = int64(versions[i])
-	}
-
-	fmt.Println(len(v64))
-
-	appStore.PruneHeights = v64[:len(v64)-10]
-
-	appStore.PruneStores()
 
 	fmt.Println("compacting application state")
 	if err := appDB.ForceCompact(nil, nil); err != nil {
@@ -664,15 +725,22 @@ func pruneTMData(home string) error {
 
 	base := blockStore.Base()
 
+	if blocks < 300000 {
+		return fmt.Errorf("Your min-retain-blocks %+v is lower than the minimum 300000", blocks)
+	}
+
 	pruneHeight := blockStore.Height() - int64(blocks)
 
 	errs, _ := errgroup.WithContext(context.Background())
 	errs.Go(func() error {
 		fmt.Println("pruning block store")
 		// prune block store
-		blocks, err = blockStore.PruneBlocks(pruneHeight)
-		if err != nil {
-			return err
+		if base < pruneHeight {
+			tmp_blocks, err := blockStore.PruneBlocks(pruneHeight)
+			blocks = int64(tmp_blocks)
+			if err != nil {
+				return err
+			}
 		}
 
 		fmt.Println("compacting block store")
@@ -685,9 +753,11 @@ func pruneTMData(home string) error {
 
 	fmt.Println("pruning state store")
 	// prune state store
-	err = stateStore.PruneStates(base, pruneHeight)
-	if err != nil {
-		return err
+	if base < pruneHeight {
+		err = stateStore.PruneStates(base, pruneHeight)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Println("compacting state store")

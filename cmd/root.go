@@ -8,15 +8,19 @@ import (
 )
 
 var (
-	homePath   string
-	dataDir    string
-	backend    string
-	app        string
-	cosmosSdk  bool
-	tendermint bool
-	blocks     uint64
-	versions   uint64
-	appName    = "cosmprund"
+	homePath     string
+	dataDir      string
+	backend      string
+	app          string
+	cosmosSdk    bool
+	tendermint   bool
+	blocks       int64
+	keepVersions int64
+	keepEvery    int64
+	batch        uint64
+	parallel     uint64
+	profile      string
+	appName      = "cosmprund"
 )
 
 // NewRootCmd returns the root command for relayer.
@@ -36,20 +40,51 @@ func NewRootCmd() *cobra.Command {
 		return nil
 	}
 
-	// --blocks flag
-	rootCmd.PersistentFlags().Uint64VarP(&blocks, "blocks", "b", 10, "set the amount of blocks to keep (default=10)")
-	if err := viper.BindPFlag("blocks", rootCmd.PersistentFlags().Lookup("blocks")); err != nil {
+	// --pruning flag
+	rootCmd.PersistentFlags().StringVar(&profile, "pruning", "default", "pruning profile")
+	if err := viper.BindPFlag("pruning", rootCmd.PersistentFlags().Lookup("pruning")); err != nil {
 		panic(err)
 	}
 
-	// --versions flag
-	rootCmd.PersistentFlags().Uint64VarP(&versions, "versions", "v", 10, "set the amount of versions to keep in the application store (default=10)")
-	if err := viper.BindPFlag("versions", rootCmd.PersistentFlags().Lookup("versions")); err != nil {
+	// --min-retain-blocks flag
+	rootCmd.PersistentFlags().
+		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=10)")
+	if err := viper.BindPFlag("min-retain-blocks", rootCmd.PersistentFlags().Lookup("min-retain-blocks")); err != nil {
+		panic(err)
+	}
+
+	// --pruning-keep-recent flag
+	rootCmd.PersistentFlags().
+		Int64Var(&keepVersions, "pruning-keep-recent", -1, "set the amount of versions to keep in the application store (default=500000)")
+	if err := viper.BindPFlag("pruning-keep-recent", rootCmd.PersistentFlags().Lookup("pruning-keep-recent")); err != nil {
+		panic(err)
+	}
+
+	// --pruning-keep-every flag
+	rootCmd.PersistentFlags().
+		Int64Var(&keepEvery, "pruning-keep-every", -1, "set the version interval to be kept in the application store (default=None)")
+	if err := viper.BindPFlag("pruning-keep-every", rootCmd.PersistentFlags().Lookup("pruning-keep-every")); err != nil {
+		panic(err)
+	}
+
+	// --batch flag
+	rootCmd.PersistentFlags().
+		Uint64Var(&batch, "batch", 10000, "set the amount of versions to be pruned in one batch (default=10000)")
+	if err := viper.BindPFlag("batch", rootCmd.PersistentFlags().Lookup("batch")); err != nil {
+		panic(err)
+	}
+
+	// --parallel-limit flag
+	rootCmd.PersistentFlags().
+		Uint64Var(&parallel, "parallel-limit", 16, "set the limit of parallel go routines to be running at the same time (default=16)")
+	if err := viper.BindPFlag("parallel-limit", rootCmd.PersistentFlags().Lookup("parallel-limit")); err != nil {
 		panic(err)
 	}
 
 	// --backend flag
-	rootCmd.PersistentFlags().StringVar(&backend, "backend", "goleveldb", "set the type of db being used(default=goleveldb)") //todo add list of dbs to comment
+	rootCmd.PersistentFlags().
+		StringVar(&backend, "backend", "goleveldb", "set the type of db being used(default=goleveldb)")
+		//todo add list of dbs to comment
 	if err := viper.BindPFlag("backend", rootCmd.PersistentFlags().Lookup("backend")); err != nil {
 		panic(err)
 	}
@@ -61,13 +96,15 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	// --cosmos-sdk flag
-	rootCmd.PersistentFlags().BoolVar(&cosmosSdk, "cosmos-sdk", true, "set t`o false if using only with tendermint (default true)")
+	rootCmd.PersistentFlags().
+		BoolVar(&cosmosSdk, "cosmos-sdk", true, "set to false if using only with tendermint (default true)")
 	if err := viper.BindPFlag("cosmos-sdk", rootCmd.PersistentFlags().Lookup("cosmos-sdk")); err != nil {
 		panic(err)
 	}
 
 	// --tendermint flag
-	rootCmd.PersistentFlags().BoolVar(&tendermint, "tendermint", true, "set to false you dont want to prune tendermint data(default true)")
+	rootCmd.PersistentFlags().
+		BoolVar(&tendermint, "tendermint", true, "set to false you dont want to prune tendermint data(default true)")
 	if err := viper.BindPFlag("tendermint", rootCmd.PersistentFlags().Lookup("tendermint")); err != nil {
 		panic(err)
 	}
