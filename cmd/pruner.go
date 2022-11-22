@@ -43,8 +43,8 @@ var (
 		"default":    pruningProfile{"default", 300000, 500000, 0},
 		"emitter":    pruningProfile{"emitter", 300000, 100, 0},
 		"rest-light": pruningProfile{"rest-light", 600000, 100000, 0},
-		"rest-heavy": pruningProfile{"rest-heavy", 300000, 400000, 1000},
-		"peer":       pruningProfile{"peer", 300000, 100, 30000},
+		"rest-heavy": pruningProfile{"rest-heavy", 0, 400000, 1000},
+		"peer":       pruningProfile{"peer", 0, 100, 30000},
 		"seed":       pruningProfile{"seed", 300000, 100, 0},
 		"sentry":     pruningProfile{"sentry", 600000, 100, 0},
 		"validator":  pruningProfile{"validator", 600000, 100, 0},
@@ -101,6 +101,64 @@ func pruneCmd() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+func compactCmd() *cobra.Command {
+
+	cmd := &cobra.Command{
+		Use:   "compact [path_to_home]",
+		Short: "compact data from the application store and block store",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			dbDir := rootify(dataDir, args[0])
+
+			o := opt.Options{
+				DisableSeeksCompaction: true,
+			}
+
+			if cosmosSdk {
+				// Get BlockStore
+				appDB, err := db.NewGoLevelDBWithOpts("application", dbDir, &o)
+				if err != nil {
+					return err
+				}
+
+				fmt.Println("compacting application state")
+				if err := appDB.ForceCompact(nil, nil); err != nil {
+					return err
+				}
+			}
+
+			if tendermint {
+				// Get BlockStore
+				blockStoreDB, err := db.NewGoLevelDBWithOpts("blockstore", dbDir, &o)
+				if err != nil {
+					return err
+				}
+
+				fmt.Println("compacting block store")
+				if err := blockStoreDB.ForceCompact(nil, nil); err != nil {
+					return err
+				}
+
+				// Get StateStore
+				stateDB, err := db.NewGoLevelDBWithOpts("state", dbDir, &o)
+				if err != nil {
+					return err
+				}
+
+				fmt.Println("compacting state store")
+				if err := stateDB.ForceCompact(nil, nil); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+	}
+
 	return cmd
 }
 
@@ -237,6 +295,9 @@ func pruneTMData(home string) error {
 
 	base := blockStore.Base()
 
+	if blocks == 0 {
+		return nil
+	}
 	if blocks < 300000 {
 		return fmt.Errorf("Your min-retain-blocks %+v is lower than the minimum 300000", blocks)
 	}

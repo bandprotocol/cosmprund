@@ -119,6 +119,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.AddCommand(
 		pruneCmd(),
+		compactCmd(),
 	)
 
 	return rootCmd
