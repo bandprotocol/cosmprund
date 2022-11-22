@@ -20,6 +20,7 @@ var (
 	batch        uint64
 	parallel     uint64
 	profile      string
+	modules      []string
 	appName      = "cosmprund"
 )
 
@@ -48,7 +49,7 @@ func NewRootCmd() *cobra.Command {
 
 	// --min-retain-blocks flag
 	rootCmd.PersistentFlags().
-		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=10)")
+		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=300000)")
 	if err := viper.BindPFlag("min-retain-blocks", rootCmd.PersistentFlags().Lookup("min-retain-blocks")); err != nil {
 		panic(err)
 	}
@@ -78,6 +79,13 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().
 		Uint64Var(&parallel, "parallel-limit", 16, "set the limit of parallel go routines to be running at the same time (default=16)")
 	if err := viper.BindPFlag("parallel-limit", rootCmd.PersistentFlags().Lookup("parallel-limit")); err != nil {
+		panic(err)
+	}
+
+	// --modules flag
+	rootCmd.PersistentFlags().
+		StringSliceVar(&modules, "modules", []string{}, "extra modules to be pruned in format: \"module_name,module_name\"")
+	if err := viper.BindPFlag("modules", rootCmd.PersistentFlags().Lookup("modules")); err != nil {
 		panic(err)
 	}
 
