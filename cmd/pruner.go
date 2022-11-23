@@ -218,7 +218,7 @@ func pruneAppState(home string) error {
 		guard <- struct{}{}
 		wg.Add(1)
 		go func(value *types.KVStoreKey) {
-			tmp_err := func(value *types.KVStoreKey) error {
+			err := func(value *types.KVStoreKey) error {
 				// TODO: cleanup app state
 				appStore := rootmulti.NewStore(appDB)
 				appStore.MountStoreWithDB(value, sdk.StoreTypeIAVL, nil)
@@ -231,11 +231,11 @@ func pruneAppState(home string) error {
 				if int(keepVersions) >= len(versions) {
 					return nil
 				}
-				versions = versions[:len(versions)-int(keepVersions)]
 
 				v64 := make([]int64, 0)
 				for i := 0; i < len(versions); i++ {
-					if keepEvery == 0 || versions[i]%int(keepEvery) != 0 {
+					if (keepEvery == 0 || versions[i]%int(keepEvery) != 0) &&
+						versions[i] <= versions[len(versions)-1]-int(keepVersions) {
 						v64 = append(v64, int64(versions[i]))
 					}
 				}
@@ -247,8 +247,8 @@ func pruneAppState(home string) error {
 				return nil
 			}(value)
 
-			if tmp_err != nil {
-				prune_err = tmp_err
+			if err != nil {
+				prune_err = err
 			}
 			<-guard
 			defer wg.Done()

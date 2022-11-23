@@ -26,8 +26,11 @@ make build
 # stop daemon/cosmovisor
 sudo systemctl stop cosmovisor
 
-# run cosmprund 
-./build/cosmprund prune ~/.gaiad/data --cosmos-sdk=false
+# run pruning 
+./build/cosmprund prune ~/.bandd/data --app=bandchain
+
+#run compacting
+./build/cosmprund compact ~/.bandd/data --app=bandchain
 ```
 
 Flags: 
@@ -58,11 +61,11 @@ Flags:
   - pruning-keep-recent: 100000
   - pruning-keep-every: None
 - **rest-heavy** 
-  - min-retain-blocks : 300000
+  - min-retain-blocks : Keep all
   - pruning-keep-recent: 400000
   - pruning-keep-every: 1000
 - **peer** 
-  - min-retain-blocks : 300000
+  - min-retain-blocks : Keep all
   - pruning-keep-recent: 100
   - pruning-keep-every: 30000
 - **seed** 
@@ -98,6 +101,10 @@ Flags:
 
 #### For Non-supported App:
 please provide your chain modules that aren't included in **Default Module Supported** in **--modules** flag
+e.g.
+```
+./build/cosmprund prune ~/.osmosisd/data --modules "icahost,gamm,lockup,incentives,epochs,poolincentives,authz,txfees,superfluid,bech32ibc,wasm,tokenfactory"
+```
 
 ### Note
 To use this with RocksDB you must:
