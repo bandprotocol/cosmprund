@@ -241,6 +241,7 @@ func pruneAppState(home string) error {
 
 				fmt.Printf("pruning store: %+v (%d/%d)\n", value.Name(), len(v64), len(versions))
 				appStore.PruneStores(int(batch))
+				fmt.Println("finished pruning store:", value.Name())
 
 				return nil
 			}(value)

@@ -464,7 +464,6 @@ func (rs *Store) PruneStores(batch int) {
 					}
 				}
 			}
-			fmt.Println("finished pruning store:", key.Name())
 		}
 	}
 
