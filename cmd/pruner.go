@@ -228,9 +228,6 @@ func pruneAppState(home string) error {
 				}
 
 				versions := appStore.GetAllVersions()
-				if int(keepVersions) >= len(versions) {
-					return nil
-				}
 
 				v64 := make([]int64, 0)
 				for i := 0; i < len(versions); i++ {
