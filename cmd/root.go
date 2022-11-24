@@ -21,7 +21,7 @@ var (
 	parallel     uint64
 	profile      string
 	modules      []string
-	appName      = "cosmprund"
+	appName      = "cosmos-pruner"
 )
 
 // NewRootCmd returns the root command for relayer.
