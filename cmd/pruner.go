@@ -74,6 +74,7 @@ func pruneCmd() *cobra.Command {
 				keepEvery = PruningProfiles[profile].keepEvery
 			}
 
+			fmt.Println("app:", app)
 			fmt.Println("profile:", profile)
 			fmt.Println("pruning-keep-every:", keepEvery)
 			fmt.Println("pruning-keep-recent:", keepVersions)
