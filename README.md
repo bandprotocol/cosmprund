@@ -2,7 +2,11 @@
 
 The goal of this project is to be able to prune a tendermint data base of blocks and an Cosmos-sdk application DB of all but the last X versions. This will allow people to not have to state sync every x days. 
 
-This tool works with a subset of modules. While an application may have modules outside the scope of this tool , this tool will prune the default sdk module, and osmosis added module. 
+This tool works with a subset of modules. While an application may have modules outside the scope of this tool , this tool will prune the default sdk module, and osmosis added module.
+
+# Disclaimer
+
+This tool is developed to be used internally for Band node but it may be useful for other chains node as well. If you want to use this tool, use at your own risk.
 
 ## WARNING
 
@@ -27,10 +31,10 @@ make build
 sudo systemctl stop cosmovisor
 
 # run pruning 
-./build/cosmprund prune ~/.bandd/data --app=bandchain
+./build/cosmprund prune ~/.band/data --app=bandchain
 
 #run compacting
-./build/cosmprund compact ~/.bandd/data --app=bandchain
+./build/cosmprund compact ~/.band/data --app=bandchain
 ```
 
 Flags: 
@@ -101,9 +105,6 @@ Flags:
 
 #### For Non-supported App:
 please provide your chain modules that aren't included in **Default Module Supported** in **--modules** flag
-e.g.
-```
-./build/cosmprund prune ~/.osmosisd/data --modules "icahost,gamm,lockup,incentives,epochs,poolincentives,authz,txfees,superfluid,bech32ibc,wasm,tokenfactory"
 ```
 
 ### Note
