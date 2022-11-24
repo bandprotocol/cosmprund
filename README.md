@@ -28,7 +28,7 @@ cd cosmprund
 make install
 
 # stop daemon/cosmovisor
-sudo systemctl stop cosmovisor
+sudo systemctl stop bandd
 
 # run pruning 
 cosmos-pruner prune ~/.band/data --app=bandchain
