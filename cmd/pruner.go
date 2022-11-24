@@ -40,21 +40,20 @@ type pruningProfile struct {
 
 var (
 	PruningProfiles = map[string]pruningProfile{
-		"default":    pruningProfile{"default", 300000, 500000, 0},
-		"emitter":    pruningProfile{"emitter", 300000, 100, 0},
-		"rest-light": pruningProfile{"rest-light", 600000, 100000, 0},
-		"rest-heavy": pruningProfile{"rest-heavy", 0, 400000, 1000},
-		"peer":       pruningProfile{"peer", 0, 100, 30000},
-		"seed":       pruningProfile{"seed", 300000, 100, 0},
-		"sentry":     pruningProfile{"sentry", 600000, 100, 0},
-		"validator":  pruningProfile{"validator", 600000, 100, 0},
+		"default":    {"default", 0, 400000, 0},
+		"emitter":    {"emitter", 300000, 100, 0},
+		"rest-light": {"rest-light", 600000, 100000, 0},
+		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
+		"peer":       {"peer", 0, 100, 30000},
+		"seed":       {"seed", 300000, 100, 0},
+		"sentry":     {"sentry", 600000, 100, 0},
+		"validator":  {"validator", 600000, 100, 0},
 	}
 )
 
 // load db
 // load app store and prune
 // if immutable tree is not deletable we should import and export current state
-
 func pruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prune [path_to_home]",
@@ -75,20 +74,14 @@ func pruneCmd() *cobra.Command {
 				keepEvery = PruningProfiles[profile].keepEvery
 			}
 
-			fmt.Println("profile: ", profile)
-			fmt.Println("pruning-keep-every: ", keepEvery)
-			fmt.Println("pruning-keep-recent: ", keepVersions)
-			fmt.Println("min-retain-blocks: ", blocks)
-			fmt.Println("batch: ", batch)
-			fmt.Println("parallel-limit: ", parallel)
+			fmt.Println("profile:", profile)
+			fmt.Println("pruning-keep-every:", keepEvery)
+			fmt.Println("pruning-keep-recent:", keepVersions)
+			fmt.Println("min-retain-blocks:", blocks)
+			fmt.Println("batch:", batch)
+			fmt.Println("parallel-limit:", parallel)
 
 			var err error
-			if tendermint {
-				if err = pruneTMData(args[0]); err != nil {
-					return err
-				}
-			}
-
 			if cosmosSdk {
 				err = pruneAppState(args[0])
 				if err != nil {
@@ -96,6 +89,12 @@ func pruneCmd() *cobra.Command {
 				}
 				return nil
 
+			}
+
+			if tendermint {
+				if err = pruneTMData(args[0]); err != nil {
+					return err
+				}
 			}
 
 			return nil

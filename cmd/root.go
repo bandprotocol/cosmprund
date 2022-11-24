@@ -33,11 +33,6 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		// reads `homeDir/config.yaml` into `var config *Config` before each command
-		// if err := initConfig(rootCmd); err != nil {
-		// 	return err
-		// }
-
 		return nil
 	}
 
@@ -49,14 +44,14 @@ func NewRootCmd() *cobra.Command {
 
 	// --min-retain-blocks flag
 	rootCmd.PersistentFlags().
-		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=300000)")
+		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=0)")
 	if err := viper.BindPFlag("min-retain-blocks", rootCmd.PersistentFlags().Lookup("min-retain-blocks")); err != nil {
 		panic(err)
 	}
 
 	// --pruning-keep-recent flag
 	rootCmd.PersistentFlags().
-		Int64Var(&keepVersions, "pruning-keep-recent", -1, "set the amount of versions to keep in the application store (default=500000)")
+		Int64Var(&keepVersions, "pruning-keep-recent", -1, "set the amount of versions to keep in the application store (default=400000)")
 	if err := viper.BindPFlag("pruning-keep-recent", rootCmd.PersistentFlags().Lookup("pruning-keep-recent")); err != nil {
 		panic(err)
 	}
@@ -98,7 +93,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	// --app flag
-	rootCmd.PersistentFlags().StringVar(&app, "app", "", "set the app you are pruning (supported apps: osmosis)")
+	rootCmd.PersistentFlags().StringVar(&app, "app", "", "set the app you are pruning (supported apps: bandchain)")
 	if err := viper.BindPFlag("app", rootCmd.PersistentFlags().Lookup("app")); err != nil {
 		panic(err)
 	}

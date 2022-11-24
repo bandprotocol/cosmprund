@@ -2,7 +2,7 @@
 
 The goal of this project is to be able to prune a tendermint data base of blocks and an Cosmos-sdk application DB of all but the last X versions. This will allow people to not have to state sync every x days. 
 
-This tool works with a subset of modules. While an application may have modules outside the scope of this tool , this tool will prune the default sdk module, and osmosis added module.
+This tool works with a subset of modules. While an application may have modules outside the scope of this tool , this tool will prune the default sdk module, and band added module.
 
 # Disclaimer
 
@@ -23,18 +23,18 @@ Cosmprund works of a data directory that has the same structure of a normal cosm
 
 ```
 # clone & build cosmprund repo
-git clone https://github.com/binaryholdings/cosmprund
+git clone https://github.com/bandprotocol/cosmprund.git
 cd cosmprund
-make build
+make install
 
 # stop daemon/cosmovisor
 sudo systemctl stop cosmovisor
 
 # run pruning 
-./build/cosmprund prune ~/.band/data --app=bandchain
+cosmos-pruner prune ~/.band/data --app=bandchain
 
 #run compacting
-./build/cosmprund compact ~/.band/data --app=bandchain
+cosmos-pruner compact ~/.band/data --app=bandchain
 ```
 
 Flags: 
