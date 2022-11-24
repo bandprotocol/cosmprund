@@ -93,7 +93,8 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	// --app flag
-	rootCmd.PersistentFlags().StringVar(&app, "app", "", "set the app you are pruning (supported apps: bandchain)")
+	rootCmd.PersistentFlags().
+		StringVar(&app, "app", "bandchain", "set the app you are pruning (supported apps: bandchain)")
 	if err := viper.BindPFlag("app", rootCmd.PersistentFlags().Lookup("app")); err != nil {
 		panic(err)
 	}
