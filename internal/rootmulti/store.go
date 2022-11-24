@@ -9,7 +9,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"sync"
 
 	iavltree "github.com/cosmos/iavl"
 	protoio "github.com/gogo/protobuf/io"
@@ -441,40 +440,33 @@ func (rs *Store) PruneStores(batch int) {
 		return
 	}
 
-	wg := sync.WaitGroup{}
 	for key, store := range rs.stores {
-		wg.Add(1)
 		if store.GetStoreType() == types.StoreTypeIAVL {
 			// If the store is wrapped with an inter-block cache, we must first unwrap
 			// it to get the underlying IAVL store.
-			go func(k types.StoreKey) {
-				store = rs.GetCommitKVStore(k)
-				fmt.Println("pruning store:", k.Name())
+			store = rs.GetCommitKVStore(key)
 
-				if batch == 0 {
-					batch = len(rs.PruneHeights)
+			if batch == 0 {
+				batch = len(rs.PruneHeights)
+			}
+			for i := 0; i < len(rs.PruneHeights); i += batch {
+				j := i + batch
+				if j > len(rs.PruneHeights) {
+					j = len(rs.PruneHeights)
 				}
-				for i := 0; i < len(rs.PruneHeights); i += batch {
-					j := i + batch
-					if j > len(rs.PruneHeights) {
-						j = len(rs.PruneHeights)
-					}
-					if err := store.(*iavl.Store).DeleteVersions(rs.PruneHeights[i:j]...); err != nil {
-						if errCause := errors.Cause(err); errCause != nil &&
-							errCause != iavltree.ErrVersionDoesNotExist {
-							fmt.Println("error pruning store:", k.Name())
-							if !strings.HasPrefix(err.Error(), "cannot delete latest saved version") {
-								panic(err)
-							}
+				if err := store.(*iavl.Store).DeleteVersions(rs.PruneHeights[i:j]...); err != nil {
+					if errCause := errors.Cause(err); errCause != nil &&
+						errCause != iavltree.ErrVersionDoesNotExist {
+						fmt.Println("error pruning store:", key.Name())
+						if !strings.HasPrefix(err.Error(), "cannot delete latest saved version") {
+							panic(err)
 						}
 					}
 				}
-				fmt.Println("finished pruning store:", k.Name())
-				defer wg.Done()
-			}(key)
+			}
+			fmt.Println("finished pruning store:", key.Name())
 		}
 	}
-	wg.Wait()
 
 	rs.PruneHeights = make([]int64, 0)
 }
