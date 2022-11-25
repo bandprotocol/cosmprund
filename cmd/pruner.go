@@ -88,8 +88,6 @@ func pruneCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return nil
-
 			}
 
 			if tendermint {
