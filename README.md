@@ -33,7 +33,10 @@ sudo systemctl stop bandd
 # run pruning 
 cosmos-pruner prune ~/.band/data --app=bandchain
 
-#run compacting
+# run pruning with preset
+cosmos-pruner prune ~/.band/data --app=bandchain --pruning validator
+
+# run compacting
 cosmos-pruner compact ~/.band/data --app=bandchain
 ```
 

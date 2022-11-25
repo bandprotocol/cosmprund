@@ -33,14 +33,14 @@ import (
 
 type pruningProfile struct {
 	name         string
-	blocks       int64
-	keepVersions int64
-	keepEvery    int64
+	blocks       uint64
+	keepVersions uint64
+	keepEvery    uint64
 }
 
 var (
 	PruningProfiles = map[string]pruningProfile{
-		"default":    {"default", 0, 400000, 0},
+		"default":    {"default", 0, 400000, 100},
 		"emitter":    {"emitter", 300000, 100, 0},
 		"rest-light": {"rest-light", 600000, 100000, 0},
 		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
@@ -64,13 +64,14 @@ func pruneCmd() *cobra.Command {
 			if _, ok := PruningProfiles[profile]; !ok {
 				return fmt.Errorf("Invalid Pruning Profile")
 			}
-			if blocks < 0 {
+
+			if !cmd.Flag("min-retain-blocks").Changed {
 				blocks = PruningProfiles[profile].blocks
 			}
-			if keepVersions < 0 {
+			if !cmd.Flag("pruning-keep-recent").Changed {
 				keepVersions = PruningProfiles[profile].keepVersions
 			}
-			if keepEvery < 0 {
+			if !cmd.Flag("pruning-keep-every").Changed {
 				keepEvery = PruningProfiles[profile].keepEvery
 			}
 
@@ -305,8 +306,7 @@ func pruneTMData(home string) error {
 		fmt.Println("pruning block store")
 		// prune block store
 		if base < pruneHeight {
-			tmp_blocks, err := blockStore.PruneBlocks(pruneHeight)
-			blocks = int64(tmp_blocks)
+			_, err := blockStore.PruneBlocks(pruneHeight)
 			if err != nil {
 				return err
 			}
@@ -338,7 +338,6 @@ func pruneTMData(home string) error {
 }
 
 // Utils
-
 func rootify(path, root string) string {
 	if filepath.IsAbs(path) {
 		return path
