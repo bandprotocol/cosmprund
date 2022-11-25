@@ -84,8 +84,7 @@ func pruneCmd() *cobra.Command {
 
 			var err error
 			if cosmosSdk {
-				err = pruneAppState(args[0])
-				if err != nil {
+				if err = pruneAppState(args[0]); err != nil {
 					return err
 				}
 			}
