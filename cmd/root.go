@@ -36,7 +36,6 @@ func cobraInit(rootCmd *cobra.Command) error {
 	}
 
 	appDir := rootify(configDir, homePath)
-	fmt.Printf("appDir %+v", appDir)
 	// Use config file from the flag.
 	viper.SetConfigFile(appDir)
 
@@ -45,7 +44,7 @@ func cobraInit(rootCmd *cobra.Command) error {
 		return fmt.Errorf("Error loading config file. %+v", err)
 	}
 	if viper.ConfigFileUsed() != "" {
-		fmt.Printf("Using config file: %+v", viper.ConfigFileUsed())
+		fmt.Printf("\nUsing config file: %+v", viper.ConfigFileUsed())
 	}
 	// Bind flags from the command line to the viper framework
 	if err := viper.BindPFlags(rootCmd.Flags()); err != nil {
