@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -9,7 +10,8 @@ import (
 
 var (
 	homePath     string
-	dataDir      string
+	dataDir      = "data"
+	configDir    = "config/app.toml"
 	backend      string
 	app          string
 	cosmosSdk    bool
@@ -24,6 +26,40 @@ var (
 	appName      = "cosmos-pruner"
 )
 
+func cobraInit(rootCmd *cobra.Command) error {
+	if homePath == "" {
+		dirname, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		homePath = rootify(".band", dirname)
+	}
+
+	appDir := rootify(configDir, homePath)
+	fmt.Printf("appDir %+v", appDir)
+	// Use config file from the flag.
+	viper.SetConfigFile(appDir)
+
+	// If a config file is found, read it in.
+	if err := viper.ReadInConfig(); err != nil {
+		return fmt.Errorf("Error loading config file. %+v", err)
+	}
+	if viper.ConfigFileUsed() != "" {
+		fmt.Printf("Using config file: %+v", viper.ConfigFileUsed())
+	}
+	// Bind flags from the command line to the viper framework
+	if err := viper.BindPFlags(rootCmd.Flags()); err != nil {
+		return err
+	}
+
+	blocks = viper.GetUint64("min-retain-blocks")
+	profile = viper.GetString("pruning")
+	keepVersions = viper.GetUint64("pruning-keep-recent")
+	keepEvery = viper.GetUint64("pruning-keep-every")
+
+	return nil
+}
+
 // NewRootCmd returns the root command for relayer.
 func NewRootCmd() *cobra.Command {
 	// RootCmd represents the base command when called without any subcommands
@@ -34,11 +70,18 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		// reads `homeDir/config.yaml` into `var config *Config` before each command
-		// if err := initConfig(rootCmd); err != nil {
-		// 	return err
-		// }
+		if err := cobraInit(rootCmd); err != nil {
+			return err
+		}
 
 		return nil
+	}
+
+	// --home flag
+	rootCmd.PersistentFlags().
+		StringVar(&homePath, "home", "", `directory for config and data (""=default /.band directory) (default "")`)
+	if err := viper.BindPFlag("home", rootCmd.PersistentFlags().Lookup("home")); err != nil {
+		panic(err)
 	}
 
 	// --pruning flag

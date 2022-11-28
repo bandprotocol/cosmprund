@@ -41,6 +41,8 @@ type pruningProfile struct {
 var (
 	PruningProfiles = map[string]pruningProfile{
 		"default":    {"default", 0, 400000, 100},
+		"nothing":    {"nothing", 0, 0, 1},
+		"everything": {"everything", 0, 10, 0},
 		"emitter":    {"emitter", 300000, 100, 0},
 		"rest-light": {"rest-light", 600000, 100000, 0},
 		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
@@ -58,21 +60,21 @@ func pruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prune [path_to_home]",
 		Short: "prune data from the application store and block store",
-		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			if _, ok := PruningProfiles[profile]; !ok {
-				return fmt.Errorf("Invalid Pruning Profile")
-			}
-
-			if !cmd.Flag("min-retain-blocks").Changed {
-				blocks = PruningProfiles[profile].blocks
-			}
-			if !cmd.Flag("pruning-keep-recent").Changed {
-				keepVersions = PruningProfiles[profile].keepVersions
-			}
-			if !cmd.Flag("pruning-keep-every").Changed {
-				keepEvery = PruningProfiles[profile].keepEvery
+			if profile != "custom" {
+				if _, ok := PruningProfiles[profile]; !ok {
+					return fmt.Errorf("Invalid Pruning Profile")
+				}
+				if !cmd.Flag("min-retain-blocks").Changed {
+					blocks = PruningProfiles[profile].blocks
+				}
+				if !cmd.Flag("pruning-keep-recent").Changed {
+					keepVersions = PruningProfiles[profile].keepVersions
+				}
+				if !cmd.Flag("pruning-keep-every").Changed {
+					keepEvery = PruningProfiles[profile].keepEvery
+				}
 			}
 
 			fmt.Println("app:", app)
@@ -85,13 +87,13 @@ func pruneCmd() *cobra.Command {
 
 			var err error
 			if cosmosSdk {
-				if err = pruneAppState(args[0]); err != nil {
+				if err = pruneAppState(homePath); err != nil {
 					return err
 				}
 			}
 
 			if tendermint {
-				if err = pruneTMData(args[0]); err != nil {
+				if err = pruneTMData(homePath); err != nil {
 					return err
 				}
 			}
@@ -107,10 +109,9 @@ func compactCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "compact [path_to_home]",
 		Short: "compact data from the application store and block store",
-		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			dbDir := rootify(dataDir, args[0])
+			dbDir := rootify(dataDir, homePath)
 
 			o := opt.Options{
 				DisableSeeksCompaction: true,
