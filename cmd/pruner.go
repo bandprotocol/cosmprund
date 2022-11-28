@@ -306,7 +306,7 @@ func pruneTMData(home string) error {
 		fmt.Println("pruning block store")
 		// prune block store
 		if base < pruneHeight {
-			_, err := blockStore.PruneBlocks(pruneHeight)
+			blocks, err = blockStore.PruneBlocks(pruneHeight)
 			if err != nil {
 				return err
 			}
