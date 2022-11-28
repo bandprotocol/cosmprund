@@ -16,10 +16,9 @@ We are working on integrating this natively into the Cosmos-sdk and Tendermint
 
 ## How to use
 
-Cosmprund works of a data directory that has the same structure of a normal cosmos-sdk/tendermint node. By default it will prune all but 10 blocks from tendermint, and all but 10 versions of application state. 
+Cosmprund works of a home directory that has the same structure of a normal cosmos-sdk/tendermint node. By default it will prune follow the config from app.toml in your home path.
 
 > Note: Application pruning can take a very long time dependent on the size of the db. 
-
 
 ```
 # clone & build cosmprund repo
@@ -30,19 +29,22 @@ make install
 # stop daemon/cosmovisor
 sudo systemctl stop bandd
 
-# run pruning 
-cosmos-pruner prune ~/.band/data --app=bandchain
-
-# run pruning with preset
-cosmos-pruner prune ~/.band/data --app=bandchain --pruning validator
+# run pruning using config from app.toml
+cosmos-pruner prune
 
 # run compacting
-cosmos-pruner compact ~/.band/data --app=bandchain
+cosmos-pruner compact
+
+# run pruning with params
+cosmos-pruner prune --home ~/.band --pruning validator --app=bandchain
+
+# run compacting with params
+cosmos-pruner compact --home ~/.band
 ```
 
 Flags: 
 
-- `data-dir`: path to data directory if not default
+- `home`: path to directory for config and data (default=~/.band)
 - `app`: the application you want to prune, outside the sdk default modules. See `Supported Apps`
 - `cosmos-sdk`: If pruning a non cosmos-sdk chain, like Nomic, you only want to use tendermint pruning or if you want to only prune tendermint block & state as this is generally large on machines(Default true)
 - `tendermint`: If the user wants to only prune application data they can disable pruning of tendermint data. (Default true)
@@ -56,9 +58,17 @@ Flags:
   
 #### Pruning profiles
 - **default** 
-  - min-retain-blocks : 300000
-  - pruning-keep-recent: 500000
-  - pruning-keep-every: None
+  - min-retain-blocks : 0
+  - pruning-keep-recent: 400000
+  - pruning-keep-every: 100
+- **everything** 
+  - min-retain-blocks : 0
+  - pruning-keep-recent: 10
+  - pruning-keep-every: 0
+- **nothing** 
+  - min-retain-blocks : 0
+  - pruning-keep-recent: 0
+  - pruning-keep-every: 1
 - **emitter** 
   - min-retain-blocks : 300000
   - pruning-keep-recent: 100
@@ -108,11 +118,4 @@ Flags:
 
 #### For Non-supported App:
 please provide your chain modules that aren't included in **Default Module Supported** in **--modules** flag
-```
-
-### Note
-To use this with RocksDB you must:
-
-```bash
-go install -ldflags '-w -s -X github.com/cosmos/cosmos-sdk/types.DBBackend=rocksdb' -tags rocksdb ./...
 ```
