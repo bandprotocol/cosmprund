@@ -10,7 +10,7 @@ BUILD_FLAGS := -ldflags '$(LD_FLAGS)'
 
 build:
 	@echo "Building Pruning"
-	@go build -mod readonly $(BUILD_FLAGS) -o build/cosmprund main.go
+	@go build -mod readonly $(BUILD_FLAGS) -o build/cosmos-pruner main.go
 
 install:
 	@echo "Installing Lens"

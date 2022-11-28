@@ -14,14 +14,14 @@ var (
 	app          string
 	cosmosSdk    bool
 	tendermint   bool
-	blocks       int64
-	keepVersions int64
-	keepEvery    int64
+	blocks       uint64
+	keepVersions uint64
+	keepEvery    uint64
 	batch        uint64
 	parallel     uint64
 	profile      string
 	modules      []string
-	appName      = "cosmprund"
+	appName      = "cosmos-pruner"
 )
 
 // NewRootCmd returns the root command for relayer.
@@ -49,35 +49,35 @@ func NewRootCmd() *cobra.Command {
 
 	// --min-retain-blocks flag
 	rootCmd.PersistentFlags().
-		Int64Var(&blocks, "min-retain-blocks", -1, "set the amount of tendermint blocks to be kept (default=300000)")
+		Uint64Var(&blocks, "min-retain-blocks", 0, "set the amount of tendermint blocks to be kept (0=keep all) (default 0)")
 	if err := viper.BindPFlag("min-retain-blocks", rootCmd.PersistentFlags().Lookup("min-retain-blocks")); err != nil {
 		panic(err)
 	}
 
 	// --pruning-keep-recent flag
 	rootCmd.PersistentFlags().
-		Int64Var(&keepVersions, "pruning-keep-recent", -1, "set the amount of versions to keep in the application store (default=500000)")
+		Uint64Var(&keepVersions, "pruning-keep-recent", 400000, "set the amount of versions to keep in the application store")
 	if err := viper.BindPFlag("pruning-keep-recent", rootCmd.PersistentFlags().Lookup("pruning-keep-recent")); err != nil {
 		panic(err)
 	}
 
 	// --pruning-keep-every flag
 	rootCmd.PersistentFlags().
-		Int64Var(&keepEvery, "pruning-keep-every", -1, "set the version interval to be kept in the application store (default=None)")
+		Uint64Var(&keepEvery, "pruning-keep-every", 100, "set the version interval to be kept in the application store (0=None)")
 	if err := viper.BindPFlag("pruning-keep-every", rootCmd.PersistentFlags().Lookup("pruning-keep-every")); err != nil {
 		panic(err)
 	}
 
 	// --batch flag
 	rootCmd.PersistentFlags().
-		Uint64Var(&batch, "batch", 10000, "set the amount of versions to be pruned in one batch (default=10000)")
+		Uint64Var(&batch, "batch", 10000, "set the amount of versions to be pruned in one batch")
 	if err := viper.BindPFlag("batch", rootCmd.PersistentFlags().Lookup("batch")); err != nil {
 		panic(err)
 	}
 
 	// --parallel-limit flag
 	rootCmd.PersistentFlags().
-		Uint64Var(&parallel, "parallel-limit", 16, "set the limit of parallel go routines to be running at the same time (default=16)")
+		Uint64Var(&parallel, "parallel-limit", 16, "set the limit of parallel go routines to be running at the same time")
 	if err := viper.BindPFlag("parallel-limit", rootCmd.PersistentFlags().Lookup("parallel-limit")); err != nil {
 		panic(err)
 	}
@@ -91,28 +91,29 @@ func NewRootCmd() *cobra.Command {
 
 	// --backend flag
 	rootCmd.PersistentFlags().
-		StringVar(&backend, "backend", "goleveldb", "set the type of db being used(default=goleveldb)")
-		//todo add list of dbs to comment
+		StringVar(&backend, "backend", "goleveldb", "set the type of db being used")
+	// todo add list of dbs to comment
 	if err := viper.BindPFlag("backend", rootCmd.PersistentFlags().Lookup("backend")); err != nil {
 		panic(err)
 	}
 
 	// --app flag
-	rootCmd.PersistentFlags().StringVar(&app, "app", "", "set the app you are pruning (supported apps: osmosis)")
+	rootCmd.PersistentFlags().
+		StringVar(&app, "app", "bandchain", "set the app you are pruning")
 	if err := viper.BindPFlag("app", rootCmd.PersistentFlags().Lookup("app")); err != nil {
 		panic(err)
 	}
 
 	// --cosmos-sdk flag
 	rootCmd.PersistentFlags().
-		BoolVar(&cosmosSdk, "cosmos-sdk", true, "set to false if using only with tendermint (default true)")
+		BoolVar(&cosmosSdk, "cosmos-sdk", true, "set to false if using only with tendermint")
 	if err := viper.BindPFlag("cosmos-sdk", rootCmd.PersistentFlags().Lookup("cosmos-sdk")); err != nil {
 		panic(err)
 	}
 
 	// --tendermint flag
 	rootCmd.PersistentFlags().
-		BoolVar(&tendermint, "tendermint", true, "set to false you dont want to prune tendermint data(default true)")
+		BoolVar(&tendermint, "tendermint", true, "set to false you dont want to prune tendermint data")
 	if err := viper.BindPFlag("tendermint", rootCmd.PersistentFlags().Lookup("tendermint")); err != nil {
 		panic(err)
 	}

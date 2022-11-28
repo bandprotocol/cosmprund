@@ -33,28 +33,27 @@ import (
 
 type pruningProfile struct {
 	name         string
-	blocks       int64
-	keepVersions int64
-	keepEvery    int64
+	blocks       uint64
+	keepVersions uint64
+	keepEvery    uint64
 }
 
 var (
 	PruningProfiles = map[string]pruningProfile{
-		"default":    pruningProfile{"default", 300000, 500000, 0},
-		"emitter":    pruningProfile{"emitter", 300000, 100, 0},
-		"rest-light": pruningProfile{"rest-light", 600000, 100000, 0},
-		"rest-heavy": pruningProfile{"rest-heavy", 0, 400000, 1000},
-		"peer":       pruningProfile{"peer", 0, 100, 30000},
-		"seed":       pruningProfile{"seed", 300000, 100, 0},
-		"sentry":     pruningProfile{"sentry", 600000, 100, 0},
-		"validator":  pruningProfile{"validator", 600000, 100, 0},
+		"default":    {"default", 0, 400000, 100},
+		"emitter":    {"emitter", 300000, 100, 0},
+		"rest-light": {"rest-light", 600000, 100000, 0},
+		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
+		"peer":       {"peer", 0, 100, 30000},
+		"seed":       {"seed", 300000, 100, 0},
+		"sentry":     {"sentry", 600000, 100, 0},
+		"validator":  {"validator", 600000, 100, 0},
 	}
 )
 
 // load db
 // load app store and prune
 // if immutable tree is not deletable we should import and export current state
-
 func pruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prune [path_to_home]",
@@ -65,37 +64,36 @@ func pruneCmd() *cobra.Command {
 			if _, ok := PruningProfiles[profile]; !ok {
 				return fmt.Errorf("Invalid Pruning Profile")
 			}
-			if blocks < 0 {
+
+			if !cmd.Flag("min-retain-blocks").Changed {
 				blocks = PruningProfiles[profile].blocks
 			}
-			if keepVersions < 0 {
+			if !cmd.Flag("pruning-keep-recent").Changed {
 				keepVersions = PruningProfiles[profile].keepVersions
 			}
-			if keepEvery < 0 {
+			if !cmd.Flag("pruning-keep-every").Changed {
 				keepEvery = PruningProfiles[profile].keepEvery
 			}
 
-			fmt.Println("profile: ", profile)
-			fmt.Println("pruning-keep-every: ", keepEvery)
-			fmt.Println("pruning-keep-recent: ", keepVersions)
-			fmt.Println("min-retain-blocks: ", blocks)
-			fmt.Println("batch: ", batch)
-			fmt.Println("parallel-limit: ", parallel)
+			fmt.Println("app:", app)
+			fmt.Println("profile:", profile)
+			fmt.Println("pruning-keep-every:", keepEvery)
+			fmt.Println("pruning-keep-recent:", keepVersions)
+			fmt.Println("min-retain-blocks:", blocks)
+			fmt.Println("batch:", batch)
+			fmt.Println("parallel-limit:", parallel)
 
 			var err error
+			if cosmosSdk {
+				if err = pruneAppState(args[0]); err != nil {
+					return err
+				}
+			}
+
 			if tendermint {
 				if err = pruneTMData(args[0]); err != nil {
 					return err
 				}
-			}
-
-			if cosmosSdk {
-				err = pruneAppState(args[0])
-				if err != nil {
-					return err
-				}
-				return nil
-
 			}
 
 			return nil
@@ -228,9 +226,6 @@ func pruneAppState(home string) error {
 				}
 
 				versions := appStore.GetAllVersions()
-				if int(keepVersions) >= len(versions) {
-					return nil
-				}
 
 				v64 := make([]int64, 0)
 				for i := 0; i < len(versions); i++ {
@@ -242,7 +237,9 @@ func pruneAppState(home string) error {
 
 				appStore.PruneHeights = v64[:]
 
+				fmt.Printf("pruning store: %+v (%d/%d)\n", value.Name(), len(v64), len(versions))
 				appStore.PruneStores(int(batch))
+				fmt.Println("finished pruning store:", value.Name())
 
 				return nil
 			}(value)
@@ -309,8 +306,7 @@ func pruneTMData(home string) error {
 		fmt.Println("pruning block store")
 		// prune block store
 		if base < pruneHeight {
-			tmp_blocks, err := blockStore.PruneBlocks(pruneHeight)
-			blocks = int64(tmp_blocks)
+			blocks, err = blockStore.PruneBlocks(pruneHeight)
 			if err != nil {
 				return err
 			}
@@ -342,7 +338,6 @@ func pruneTMData(home string) error {
 }
 
 // Utils
-
 func rootify(path, root string) string {
 	if filepath.IsAbs(path) {
 		return path
