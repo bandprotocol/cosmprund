@@ -58,7 +58,7 @@ var (
 // if immutable tree is not deletable we should import and export current state
 func pruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "prune [path_to_home]",
+		Use:   "prune",
 		Short: "prune data from the application store and block store",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -107,7 +107,7 @@ func pruneCmd() *cobra.Command {
 func compactCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
-		Use:   "compact [path_to_home]",
+		Use:   "compact",
 		Short: "compact data from the application store and block store",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
