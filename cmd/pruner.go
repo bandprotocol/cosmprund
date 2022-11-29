@@ -42,7 +42,7 @@ var (
 	PruningProfiles = map[string]pruningProfile{
 		"default":    {"default", 0, 400000, 100},
 		"nothing":    {"nothing", 0, 0, 1},
-		"everything": {"everything", 100000, 10, 0},
+		"everything": {"everything", 0, 10, 0},
 		"emitter":    {"emitter", 100000, 100, 0},
 		"rest-light": {"rest-light", 600000, 100000, 0},
 		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
@@ -66,7 +66,7 @@ func pruneCmd() *cobra.Command {
 				if _, ok := PruningProfiles[profile]; !ok {
 					return fmt.Errorf("Invalid Pruning Profile")
 				}
-				if !cmd.Flag("min-retain-blocks").Changed {
+				if !cmd.Flag("min-retain-blocks").Changed && cmd.Flag("pruning").Changed {
 					blocks = PruningProfiles[profile].blocks
 				}
 				if !cmd.Flag("pruning-keep-recent").Changed {
