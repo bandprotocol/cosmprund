@@ -42,14 +42,14 @@ var (
 	PruningProfiles = map[string]pruningProfile{
 		"default":    {"default", 0, 400000, 100},
 		"nothing":    {"nothing", 0, 0, 1},
-		"everything": {"everything", 0, 10, 0},
-		"emitter":    {"emitter", 300000, 100, 0},
+		"everything": {"everything", 100000, 10, 0},
+		"emitter":    {"emitter", 100000, 100, 0},
 		"rest-light": {"rest-light", 600000, 100000, 0},
 		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
 		"peer":       {"peer", 0, 100, 30000},
-		"seed":       {"seed", 300000, 100, 0},
-		"sentry":     {"sentry", 600000, 100, 0},
-		"validator":  {"validator", 600000, 100, 0},
+		"seed":       {"seed", 100000, 100, 0},
+		"sentry":     {"sentry", 300000, 100, 0},
+		"validator":  {"validator", 100000, 100, 0},
 	}
 )
 
@@ -296,8 +296,8 @@ func pruneTMData(home string) error {
 	if blocks == 0 {
 		return nil
 	}
-	if blocks < 300000 {
-		return fmt.Errorf("Your min-retain-blocks %+v is lower than the minimum 300000", blocks)
+	if blocks < 100000 {
+		return fmt.Errorf("Your min-retain-blocks %+v is lower than the minimum 100000", blocks)
 	}
 
 	pruneHeight := blockStore.Height() - int64(blocks)
