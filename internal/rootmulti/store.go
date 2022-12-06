@@ -9,7 +9,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"sync"
 
 	iavltree "github.com/cosmos/iavl"
 	protoio "github.com/gogo/protobuf/io"
@@ -421,7 +420,7 @@ func (rs *Store) Commit() types.CommitID {
 
 	// batch prune if the current height is a pruning interval height
 	if rs.pruningOpts.Interval > 0 && version%int64(rs.pruningOpts.Interval) == 0 {
-		rs.PruneStores()
+		rs.PruneStores(len(rs.PruneHeights))
 	}
 
 	flushMetadata(rs.db, version, rs.lastCommitInfo, rs.PruneHeights)
@@ -436,34 +435,37 @@ type empty struct{}
 
 // PruneStores will batch delete a list of heights from each mounted sub-store.
 // Afterwards, pruneHeights is reset.
-func (rs *Store) PruneStores() {
+func (rs *Store) PruneStores(batch int) {
 	if len(rs.PruneHeights) == 0 {
 		return
 	}
 
-	wg := sync.WaitGroup{}
 	for key, store := range rs.stores {
-		wg.Add(1)
 		if store.GetStoreType() == types.StoreTypeIAVL {
 			// If the store is wrapped with an inter-block cache, we must first unwrap
 			// it to get the underlying IAVL store.
-			go func(k types.StoreKey) {
-				store = rs.GetCommitKVStore(k)
-				fmt.Println("pruning store:", k.Name())
-				if err := store.(*iavl.Store).DeleteVersions(rs.PruneHeights...); err != nil {
-					if errCause := errors.Cause(err); errCause != nil && errCause != iavltree.ErrVersionDoesNotExist {
-						fmt.Println("error pruning store:", k.Name())
+			store = rs.GetCommitKVStore(key)
+
+			if batch == 0 {
+				batch = len(rs.PruneHeights)
+			}
+			for i := 0; i < len(rs.PruneHeights); i += batch {
+				j := i + batch
+				if j > len(rs.PruneHeights) {
+					j = len(rs.PruneHeights)
+				}
+				if err := store.(*iavl.Store).DeleteVersions(rs.PruneHeights[i:j]...); err != nil {
+					if errCause := errors.Cause(err); errCause != nil &&
+						errCause != iavltree.ErrVersionDoesNotExist {
+						fmt.Println("error pruning store:", key.Name())
 						if !strings.HasPrefix(err.Error(), "cannot delete latest saved version") {
 							panic(err)
 						}
 					}
 				}
-				fmt.Println("finished pruning store:", k.Name())
-				defer wg.Done()
-			}(key)
+			}
 		}
 	}
-	wg.Wait()
 
 	rs.PruneHeights = make([]int64, 0)
 }
@@ -610,7 +612,14 @@ func (rs *Store) Query(req abci.RequestQuery) abci.ResponseQuery {
 
 	queryable, ok := store.(types.Queryable)
 	if !ok {
-		return sdkerrors.QueryResult(sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "store %s (type %T) doesn't support queries", storeName, store))
+		return sdkerrors.QueryResult(
+			sdkerrors.Wrapf(
+				sdkerrors.ErrUnknownRequest,
+				"store %s (type %T) doesn't support queries",
+				storeName,
+				store,
+			),
+		)
 	}
 
 	// trim the path and make the query
@@ -622,7 +631,12 @@ func (rs *Store) Query(req abci.RequestQuery) abci.ResponseQuery {
 	}
 
 	if res.ProofOps == nil || len(res.ProofOps.Ops) == 0 {
-		return sdkerrors.QueryResult(sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "proof is unexpectedly empty; ensure height has not been pruned"))
+		return sdkerrors.QueryResult(
+			sdkerrors.Wrap(
+				sdkerrors.ErrInvalidRequest,
+				"proof is unexpectedly empty; ensure height has not been pruned",
+			),
+		)
 	}
 
 	// If the request's height is the latest height we've committed, then utilize
@@ -913,7 +927,11 @@ func (rs *Store) Restore(
 	return rs.LoadLatestVersion()
 }
 
-func (rs *Store) loadCommitStoreFromParams(key types.StoreKey, id types.CommitID, params storeParams) (types.CommitKVStore, error) {
+func (rs *Store) loadCommitStoreFromParams(
+	key types.StoreKey,
+	id types.CommitID,
+	params storeParams,
+) (types.CommitKVStore, error) {
 	var db dbm.DB
 
 	if params.db != nil {
@@ -1015,7 +1033,11 @@ func GetLatestVersion(db dbm.DB) int64 {
 }
 
 // Commits each store and returns a new commitInfo.
-func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore, removalMap map[types.StoreKey]bool) *types.CommitInfo {
+func commitStores(
+	version int64,
+	storeMap map[types.StoreKey]types.CommitKVStore,
+	removalMap map[types.StoreKey]bool,
+) *types.CommitInfo {
 	storeInfos := make([]types.StoreInfo, 0, len(storeMap))
 
 	for key, store := range storeMap {
