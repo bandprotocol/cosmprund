@@ -44,7 +44,7 @@ func cobraInit(rootCmd *cobra.Command) error {
 		return fmt.Errorf("Error loading config file. %+v", err)
 	}
 	if viper.ConfigFileUsed() != "" {
-		fmt.Printf("\nUsing config file: %+v", viper.ConfigFileUsed())
+		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
 	// Bind flags from the command line to the viper framework
 	if err := viper.BindPFlags(rootCmd.Flags()); err != nil {

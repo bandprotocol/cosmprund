@@ -85,22 +85,30 @@ func pruneCmd() *cobra.Command {
 			fmt.Println("batch:", batch)
 			fmt.Println("parallel-limit:", parallel)
 
+			ctx := cmd.Context()
+			errs, _ := errgroup.WithContext(ctx)
 			var err error
+
+			if tendermint {
+				errs.Go(func() error {
+					if err = pruneTMData(homePath); err != nil {
+						return err
+					}
+
+					return nil
+				})
+			}
+
 			if cosmosSdk {
 				if err = pruneAppState(homePath); err != nil {
 					return err
 				}
 			}
 
-			if tendermint {
-				if err = pruneTMData(homePath); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			return errs.Wait()
 		},
 	}
+
 	return cmd
 }
 
@@ -162,10 +170,6 @@ func compactCmd() *cobra.Command {
 }
 
 func pruneAppState(home string) error {
-
-	// this has the potential to expand size, should just use state sync
-	// dbType := db.BackendType(backend)
-
 	dbDir := rootify(dataDir, home)
 
 	o := opt.Options{
@@ -178,7 +182,6 @@ func pruneAppState(home string) error {
 		return err
 	}
 
-	//TODO: need to get all versions in the store, setting randomly is too slow
 	fmt.Println("pruning application state")
 
 	// only mount keys from core sdk
@@ -210,7 +213,7 @@ func pruneAppState(home string) error {
 	}
 
 	wg := sync.WaitGroup{}
-	var prune_err error
+	var pruneErr error
 
 	guard := make(chan struct{}, parallel)
 	for _, value := range keys {
@@ -218,7 +221,6 @@ func pruneAppState(home string) error {
 		wg.Add(1)
 		go func(value *types.KVStoreKey) {
 			err := func(value *types.KVStoreKey) error {
-				// TODO: cleanup app state
 				appStore := rootmulti.NewStore(appDB)
 				appStore.MountStoreWithDB(value, sdk.StoreTypeIAVL, nil)
 				err = appStore.LoadLatestVersion()
@@ -246,7 +248,7 @@ func pruneAppState(home string) error {
 			}(value)
 
 			if err != nil {
-				prune_err = err
+				pruneErr = err
 			}
 			<-guard
 			defer wg.Done()
@@ -254,8 +256,8 @@ func pruneAppState(home string) error {
 	}
 	wg.Wait()
 
-	if prune_err != nil {
-		return prune_err
+	if pruneErr != nil {
+		return pruneErr
 	}
 
 	fmt.Println("compacting application state")
@@ -263,13 +265,11 @@ func pruneAppState(home string) error {
 		return err
 	}
 
-	//create a new app store
 	return nil
 }
 
 // pruneTMData prunes the tendermint blocks and state based on the amount of blocks to keep
 func pruneTMData(home string) error {
-
 	dbDir := rootify(dataDir, home)
 
 	o := opt.Options{
@@ -322,6 +322,7 @@ func pruneTMData(home string) error {
 	})
 
 	fmt.Println("pruning state store")
+
 	// prune state store
 	if base < pruneHeight {
 		err = stateStore.PruneStates(base, pruneHeight)
@@ -334,6 +335,13 @@ func pruneTMData(home string) error {
 	if err := stateDB.ForceCompact(nil, nil); err != nil {
 		return err
 	}
+
+	if err := errs.Wait(); err != nil {
+		return err
+	}
+
+	stateDB.Close()
+	blockStore.Close()
 
 	return nil
 }
