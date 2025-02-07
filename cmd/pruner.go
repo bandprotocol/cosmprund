@@ -11,27 +11,6 @@ import (
 
 	db "github.com/cometbft/cometbft-db"
 	tmstore "github.com/cometbft/cometbft/store"
-
-	storetypes "cosmossdk.io/store/types"
-	evidencetypes "cosmossdk.io/x/evidence/types"
-	"cosmossdk.io/x/feegrant"
-	upgradetypes "cosmossdk.io/x/upgrade/types"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
-	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
-	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
-	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
-	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
-	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
-	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	capabilitytypes "github.com/cosmos/ibc-go/modules/capability/types"
-	icahosttypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host/types"
-	ibcfeetypes "github.com/cosmos/ibc-go/v8/modules/apps/29-fee/types"
-	ibctransfertypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
-	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
 )
 
 type pruningProfile struct {
@@ -185,56 +164,54 @@ func pruneAppState(home string) error {
 		return err
 	}
 
-	fmt.Println("pruning application state")
+	// fmt.Println("pruning application state")
 
-	// only mount keys from core sdk
-	// todo allow for other keys to be mounted
-	// only mount keys from core sdk
-	// todo allow for other keys to be mounted
-	keys := storetypes.NewKVStoreKeys(
-		authtypes.StoreKey,
-		banktypes.StoreKey,
-		stakingtypes.StoreKey,
-		crisistypes.StoreKey,
-		minttypes.StoreKey,
-		distrtypes.StoreKey,
-		slashingtypes.StoreKey,
-		govtypes.StoreKey,
-		paramstypes.StoreKey,
-		consensusparamtypes.StoreKey,
-		ibcexported.StoreKey,
-		upgradetypes.StoreKey,
-		evidencetypes.StoreKey,
-		ibctransfertypes.StoreKey,
-		capabilitytypes.StoreKey,
-		feegrant.StoreKey,
-		authzkeeper.StoreKey,
-		ibcfeetypes.StoreKey,
-		icahosttypes.StoreKey,
-	)
+	// // only mount keys from core sdk
+	// // todo allow for other keys to be mounted
+	// keys := storetypes.NewKVStoreKeys(
+	// 	authtypes.StoreKey,
+	// 	banktypes.StoreKey,
+	// 	stakingtypes.StoreKey,
+	// 	crisistypes.StoreKey,
+	// 	minttypes.StoreKey,
+	// 	distrtypes.StoreKey,
+	// 	slashingtypes.StoreKey,
+	// 	govtypes.StoreKey,
+	// 	paramstypes.StoreKey,
+	// 	consensusparamtypes.StoreKey,
+	// 	ibcexported.StoreKey,
+	// 	upgradetypes.StoreKey,
+	// 	evidencetypes.StoreKey,
+	// 	ibctransfertypes.StoreKey,
+	// 	capabilitytypes.StoreKey,
+	// 	feegrant.StoreKey,
+	// 	authzkeeper.StoreKey,
+	// 	ibcfeetypes.StoreKey,
+	// 	icahosttypes.StoreKey,
+	// )
 
-	if app == "bandchain" {
-		bandchainKeys := storetypes.NewKVStoreKeys(
-			"oracle", // oracletypes.StoreKey,
-			"globalfee",
-			"restake",
-			"feeds",
-			"bandtss",
-			"tss",
-			"rollingseed",
-			"tunnel",
-		)
+	// if app == "bandchain" {
+	// 	bandchainKeys := storetypes.NewKVStoreKeys(
+	// 		"oracle", // oracletypes.StoreKey,
+	// 		"globalfee",
+	// 		"restake",
+	// 		"feeds",
+	// 		"bandtss",
+	// 		"tss",
+	// 		"rollingseed",
+	// 		"tunnel",
+	// 	)
 
-		for key, value := range bandchainKeys {
-			keys[key] = value
-		}
-	}
+	// 	for key, value := range bandchainKeys {
+	// 		keys[key] = value
+	// 	}
+	// }
 
-	extraKeys := storetypes.NewKVStoreKeys(modules...)
+	// extraKeys := storetypes.NewKVStoreKeys(modules...)
 
-	for key, value := range extraKeys {
-		keys[key] = value
-	}
+	// for key, value := range extraKeys {
+	// 	keys[key] = value
+	// }
 
 	// wg := sync.WaitGroup{}
 	// var pruneErr error
