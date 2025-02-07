@@ -6,27 +6,36 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/neilotoole/errgroup"
+	"github.com/spf13/cobra"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+
+	db "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/libs/log"
+	"github.com/cometbft/cometbft/state"
+	tmstore "github.com/cometbft/cometbft/store"
+
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"github.com/cosmos/cosmos-sdk/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
+	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	evidencetypes "github.com/cosmos/cosmos-sdk/x/evidence/types"
+	feegrant "github.com/cosmos/cosmos-sdk/x/feegrant"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
-	ibctransfertypes "github.com/cosmos/ibc-go/v2/modules/apps/transfer/types"
-	ibchost "github.com/cosmos/ibc-go/v2/modules/core/24-host"
-	"github.com/neilotoole/errgroup"
-	"github.com/spf13/cobra"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/tendermint/tendermint/state"
-	tmstore "github.com/tendermint/tendermint/store"
-	db "github.com/tendermint/tm-db"
+	icahosttypes "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/host/types"
+	ibcfeetypes "github.com/cosmos/ibc-go/v7/modules/apps/29-fee/types"
+	ibctransfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	ibcexported "github.com/cosmos/ibc-go/v7/modules/core/exported"
 
 	"github.com/binaryholdings/cosmos-pruner/internal/rootmulti"
 )
@@ -133,7 +142,7 @@ func compactCmd() *cobra.Command {
 				}
 
 				fmt.Println("compacting application state")
-				if err := appDB.ForceCompact(nil, nil); err != nil {
+				if err := appDB.Compact(nil, nil); err != nil {
 					return err
 				}
 			}
@@ -146,7 +155,7 @@ func compactCmd() *cobra.Command {
 				}
 
 				fmt.Println("compacting block store")
-				if err := blockStoreDB.ForceCompact(nil, nil); err != nil {
+				if err := blockStoreDB.Compact(nil, nil); err != nil {
 					return err
 				}
 
@@ -157,7 +166,7 @@ func compactCmd() *cobra.Command {
 				}
 
 				fmt.Println("compacting state store")
-				if err := stateDB.ForceCompact(nil, nil); err != nil {
+				if err := stateDB.Compact(nil, nil); err != nil {
 					return err
 				}
 			}
@@ -186,19 +195,40 @@ func pruneAppState(home string) error {
 
 	// only mount keys from core sdk
 	// todo allow for other keys to be mounted
+	// only mount keys from core sdk
+	// todo allow for other keys to be mounted
 	keys := types.NewKVStoreKeys(
-		authtypes.StoreKey, banktypes.StoreKey, stakingtypes.StoreKey,
-		minttypes.StoreKey, distrtypes.StoreKey, slashingtypes.StoreKey,
-		govtypes.StoreKey, paramstypes.StoreKey, ibchost.StoreKey, upgradetypes.StoreKey,
-		evidencetypes.StoreKey, ibctransfertypes.StoreKey, capabilitytypes.StoreKey,
+		authtypes.StoreKey,
+		banktypes.StoreKey,
+		stakingtypes.StoreKey,
+		crisistypes.StoreKey,
+		minttypes.StoreKey,
+		distrtypes.StoreKey,
+		slashingtypes.StoreKey,
+		govtypes.StoreKey,
+		paramstypes.StoreKey,
+		consensusparamtypes.StoreKey,
+		ibcexported.StoreKey,
+		upgradetypes.StoreKey,
+		evidencetypes.StoreKey,
+		ibctransfertypes.StoreKey,
+		capabilitytypes.StoreKey,
+		feegrant.StoreKey,
+		authzkeeper.StoreKey,
+		ibcfeetypes.StoreKey,
+		icahosttypes.StoreKey,
 	)
 
 	if app == "bandchain" {
 		bandchainKeys := types.NewKVStoreKeys(
-			"feegrant", // feegrant.StoreKey,
-			"authz",    // authzkeeper.StoreKey,
-			"oracle",   // oracletypes.StoreKey,
-			"icahost",
+			"oracle", // oracletypes.StoreKey,
+			"globalfee",
+			"restake",
+			"feeds",
+			"bandtss",
+			"tss",
+			"rollingseed",
+			"tunnel",
 		)
 
 		for key, value := range bandchainKeys {
@@ -219,10 +249,10 @@ func pruneAppState(home string) error {
 	for _, value := range keys {
 		guard <- struct{}{}
 		wg.Add(1)
-		go func(value *types.KVStoreKey) {
-			err := func(value *types.KVStoreKey) error {
-				appStore := rootmulti.NewStore(appDB)
-				appStore.MountStoreWithDB(value, sdk.StoreTypeIAVL, nil)
+		go func(value *storetypes.KVStoreKey) {
+			err := func(value *storetypes.KVStoreKey) error {
+				appStore := rootmulti.NewStore(appDB, log.NewNopLogger())
+				appStore.MountStoreWithDB(value, storetypes.StoreTypeIAVL, nil)
 				err = appStore.LoadLatestVersion()
 				if err != nil {
 					return err
@@ -238,10 +268,16 @@ func pruneAppState(home string) error {
 					}
 				}
 
-				appStore.PruneHeights = v64[:]
+				pruneHeights := v64[:]
 
 				fmt.Printf("pruning store: %+v (%d/%d)\n", value.Name(), len(v64), len(versions))
-				appStore.PruneStores(int(batch))
+
+				err := appStore.PruneStores(int(batch), false, pruneHeights)
+				if err != nil {
+					fmt.Println("error pruning store:", value.Name(), err)
+					return err
+				}
+
 				fmt.Println("finished pruning store:", value.Name())
 
 				return nil
@@ -261,7 +297,7 @@ func pruneAppState(home string) error {
 	}
 
 	fmt.Println("compacting application state")
-	if err := appDB.ForceCompact(nil, nil); err != nil {
+	if err := appDB.Compact(nil, nil); err != nil {
 		return err
 	}
 
@@ -289,7 +325,9 @@ func pruneTMData(home string) error {
 		return err
 	}
 
-	stateStore := state.NewStore(stateDB)
+	stateStore := state.NewStore(stateDB, state.StoreOptions{
+		DiscardABCIResponses: true,
+	})
 
 	base := blockStore.Base()
 
@@ -314,7 +352,7 @@ func pruneTMData(home string) error {
 		}
 
 		fmt.Println("compacting block store")
-		if err := blockStoreDB.ForceCompact(nil, nil); err != nil {
+		if err := blockStoreDB.Compact(nil, nil); err != nil {
 			return err
 		}
 
@@ -332,7 +370,7 @@ func pruneTMData(home string) error {
 	}
 
 	fmt.Println("compacting state store")
-	if err := stateDB.ForceCompact(nil, nil); err != nil {
+	if err := stateDB.Compact(nil, nil); err != nil {
 		return err
 	}
 
