@@ -145,6 +145,8 @@ func compactCmd() *cobra.Command {
 				if err := appDB.Compact(nil, nil); err != nil {
 					return err
 				}
+
+				appDB.Close()
 			}
 
 			if tendermint {
@@ -169,6 +171,9 @@ func compactCmd() *cobra.Command {
 				if err := stateDB.Compact(nil, nil); err != nil {
 					return err
 				}
+
+				blockStoreDB.Close()
+				stateDB.Close()
 			}
 
 			return nil
@@ -259,7 +264,7 @@ func pruneAppState(home string) error {
 
 				pruningHeight := latestHeight - int64(keepVersions)
 
-				fmt.Printf("pruning store: %+v to %+v\n", value.Name(), pruningHeight)
+				fmt.Printf("pruning store: %+v to %+v/%+v\n", value.Name(), pruningHeight, latestHeight)
 
 				err := appStore.PruneStores(batch, pruningHeight)
 				if err != nil {
@@ -285,6 +290,8 @@ func pruneAppState(home string) error {
 		return pruneErr
 	}
 
+	appDB.Close()
+
 	// Compacting db
 	fmt.Println("compacting application state")
 
@@ -300,6 +307,8 @@ func pruneAppState(home string) error {
 	if err := goDB.Compact(nil, nil); err != nil {
 		return err
 	}
+
+	goDB.Close()
 
 	return nil
 }
@@ -341,6 +350,8 @@ func pruneTMData(home string) error {
 	// prune block store
 	base := blockStore.Base()
 	if base < pruneHeight {
+		fmt.Printf("pruning block from %+v to %+v/%+v\n", base, pruneHeight, blockStore.Height())
+
 		state, err := stateStore.LoadFromDBOrGenesisFile("")
 		if err != nil {
 			return err
@@ -351,6 +362,7 @@ func pruneTMData(home string) error {
 		if err != nil {
 			return err
 		}
+
 		fmt.Println("pruning state store")
 		err = stateStore.PruneStates(base, pruneHeight, evidenceHeight)
 		if err != nil {
