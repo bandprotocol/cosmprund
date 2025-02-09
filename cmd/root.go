@@ -19,7 +19,7 @@ var (
 	blocks       uint64
 	keepVersions uint64
 	keepEvery    uint64
-	batch        uint64
+	batch        int64
 	parallel     uint64
 	profile      string
 	modules      []string
@@ -112,7 +112,7 @@ func NewRootCmd() *cobra.Command {
 
 	// --batch flag
 	rootCmd.PersistentFlags().
-		Uint64Var(&batch, "batch", 10000, "set the amount of versions to be pruned in one batch")
+		Int64Var(&batch, "batch", 100000, "set the amount of versions to be pruned in one batch")
 	if err := viper.BindPFlag("batch", rootCmd.PersistentFlags().Lookup("batch")); err != nil {
 		panic(err)
 	}

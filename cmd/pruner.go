@@ -1,16 +1,43 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/neilotoole/errgroup"
 	"github.com/spf13/cobra"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	db "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/state"
 	tmstore "github.com/cometbft/cometbft/store"
+
+	"cosmossdk.io/log"
+	"cosmossdk.io/store/metrics"
+	storetypes "cosmossdk.io/store/types"
+	evidencetypes "cosmossdk.io/x/evidence/types"
+	"cosmossdk.io/x/feegrant"
+	upgradetypes "cosmossdk.io/x/upgrade/types"
+	dbm "github.com/cosmos/cosmos-db"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
+	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
+	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	capabilitytypes "github.com/cosmos/ibc-go/modules/capability/types"
+	icahosttypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host/types"
+	ibcfeetypes "github.com/cosmos/ibc-go/v8/modules/apps/29-fee/types"
+	ibctransfertypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
+	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
+
+	"github.com/binaryholdings/cosmos-pruner/internal/rootmulti"
 )
 
 type pruningProfile struct {
@@ -152,123 +179,125 @@ func compactCmd() *cobra.Command {
 }
 
 func pruneAppState(home string) error {
+	fmt.Println("pruning application state")
+
+	// Get application store
 	dbDir := rootify(dataDir, home)
+	appDB, err := dbm.NewDB("application", dbm.GoLevelDBBackend, dbDir)
+	if err != nil {
+		return err
+	}
+
+	// only mount keys from core sdk
+	// todo allow for other keys to be mounted
+	keys := storetypes.NewKVStoreKeys(
+		authtypes.StoreKey,
+		banktypes.StoreKey,
+		stakingtypes.StoreKey,
+		crisistypes.StoreKey,
+		minttypes.StoreKey,
+		distrtypes.StoreKey,
+		slashingtypes.StoreKey,
+		govtypes.StoreKey,
+		paramstypes.StoreKey,
+		consensusparamtypes.StoreKey,
+		ibcexported.StoreKey,
+		upgradetypes.StoreKey,
+		evidencetypes.StoreKey,
+		ibctransfertypes.StoreKey,
+		capabilitytypes.StoreKey,
+		feegrant.StoreKey,
+		authzkeeper.StoreKey,
+		ibcfeetypes.StoreKey,
+		icahosttypes.StoreKey,
+	)
+
+	if app == "bandchain" {
+		bandchainKeys := storetypes.NewKVStoreKeys(
+			"oracle",
+			"globalfee",
+			"restake",
+			"feeds",
+			"bandtss",
+			"tss",
+			"rollingseed",
+			"tunnel",
+		)
+
+		for key, value := range bandchainKeys {
+			keys[key] = value
+		}
+	}
+
+	extraKeys := storetypes.NewKVStoreKeys(modules...)
+
+	for key, value := range extraKeys {
+		keys[key] = value
+	}
+
+	wg := sync.WaitGroup{}
+	var pruneErr error
+
+	guard := make(chan struct{}, parallel)
+	for _, value := range keys {
+		guard <- struct{}{}
+		wg.Add(1)
+		go func(value *storetypes.KVStoreKey) {
+			err := func(value *storetypes.KVStoreKey) error {
+				appStore := rootmulti.NewStore(appDB, log.NewNopLogger(), metrics.NewNoOpMetrics())
+				appStore.MountStoreWithDB(value, storetypes.StoreTypeIAVL, nil)
+				err = appStore.LoadLatestVersion()
+				if err != nil {
+					return err
+				}
+
+				latestHeight := rootmulti.GetLatestVersion(appDB)
+				// valid heights should be greater than 0.
+				if latestHeight <= 0 {
+					return fmt.Errorf("the database has no valid heights to prune, the latest height: %v", latestHeight)
+				}
+
+				pruningHeight := latestHeight - int64(keepVersions)
+
+				fmt.Printf("pruning store: %+v to %+v\n", value.Name(), pruningHeight)
+
+				err := appStore.PruneStores(batch, pruningHeight)
+				if err != nil {
+					fmt.Println("error pruning store:", value.Name(), err)
+					return err
+				}
+
+				fmt.Println("finished pruning store:", value.Name())
+
+				return nil
+			}(value)
+
+			if err != nil {
+				pruneErr = err
+			}
+			<-guard
+			defer wg.Done()
+		}(value)
+	}
+	wg.Wait()
+
+	if pruneErr != nil {
+		return pruneErr
+	}
+
+	// Compacting db
+	fmt.Println("compacting application state")
 
 	o := opt.Options{
 		DisableSeeksCompaction: true,
 	}
 
-	// Get BlockStore
-	appDB, err := db.NewGoLevelDBWithOpts("application", dbDir, &o)
+	goDB, err := db.NewGoLevelDBWithOpts("application", dbDir, &o)
 	if err != nil {
 		return err
 	}
 
-	// fmt.Println("pruning application state")
-
-	// // only mount keys from core sdk
-	// // todo allow for other keys to be mounted
-	// keys := storetypes.NewKVStoreKeys(
-	// 	authtypes.StoreKey,
-	// 	banktypes.StoreKey,
-	// 	stakingtypes.StoreKey,
-	// 	crisistypes.StoreKey,
-	// 	minttypes.StoreKey,
-	// 	distrtypes.StoreKey,
-	// 	slashingtypes.StoreKey,
-	// 	govtypes.StoreKey,
-	// 	paramstypes.StoreKey,
-	// 	consensusparamtypes.StoreKey,
-	// 	ibcexported.StoreKey,
-	// 	upgradetypes.StoreKey,
-	// 	evidencetypes.StoreKey,
-	// 	ibctransfertypes.StoreKey,
-	// 	capabilitytypes.StoreKey,
-	// 	feegrant.StoreKey,
-	// 	authzkeeper.StoreKey,
-	// 	ibcfeetypes.StoreKey,
-	// 	icahosttypes.StoreKey,
-	// )
-
-	// if app == "bandchain" {
-	// 	bandchainKeys := storetypes.NewKVStoreKeys(
-	// 		"oracle", // oracletypes.StoreKey,
-	// 		"globalfee",
-	// 		"restake",
-	// 		"feeds",
-	// 		"bandtss",
-	// 		"tss",
-	// 		"rollingseed",
-	// 		"tunnel",
-	// 	)
-
-	// 	for key, value := range bandchainKeys {
-	// 		keys[key] = value
-	// 	}
-	// }
-
-	// extraKeys := storetypes.NewKVStoreKeys(modules...)
-
-	// for key, value := range extraKeys {
-	// 	keys[key] = value
-	// }
-
-	// wg := sync.WaitGroup{}
-	// var pruneErr error
-
-	// guard := make(chan struct{}, parallel)
-	// for _, value := range keys {
-	// 	guard <- struct{}{}
-	// 	wg.Add(1)
-	// 	go func(value *storetypes.KVStoreKey) {
-	// 		err := func(value *storetypes.KVStoreKey) error {
-	// 			appStore := rootmulti.NewStore(appDB, log.NewNopLogger())
-	// 			appStore.MountStoreWithDB(value, storetypes.StoreTypeIAVL, nil)
-	// 			err = appStore.LoadLatestVersion()
-	// 			if err != nil {
-	// 				return err
-	// 			}
-
-	// 			versions := appStore.GetAllVersions()
-
-	// 			v64 := make([]int64, 0)
-	// 			for i := 0; i < len(versions); i++ {
-	// 				if (keepEvery == 0 || versions[i]%int(keepEvery) != 0) &&
-	// 					versions[i] <= versions[len(versions)-1]-int(keepVersions) {
-	// 					v64 = append(v64, int64(versions[i]))
-	// 				}
-	// 			}
-
-	// 			pruneHeights := v64[:]
-
-	// 			fmt.Printf("pruning store: %+v (%d/%d)\n", value.Name(), len(v64), len(versions))
-
-	// 			err := appStore.PruneStores(int(batch), false, pruneHeights)
-	// 			if err != nil {
-	// 				fmt.Println("error pruning store:", value.Name(), err)
-	// 				return err
-	// 			}
-
-	// 			fmt.Println("finished pruning store:", value.Name())
-
-	// 			return nil
-	// 		}(value)
-
-	// 		if err != nil {
-	// 			pruneErr = err
-	// 		}
-	// 		<-guard
-	// 		defer wg.Done()
-	// 	}(value)
-	// }
-	// wg.Wait()
-
-	// if pruneErr != nil {
-	// 	return pruneErr
-	// }
-
-	fmt.Println("compacting application state")
-	if err := appDB.Compact(nil, nil); err != nil {
+	if err := goDB.Compact(nil, nil); err != nil {
 		return err
 	}
 
@@ -296,11 +325,9 @@ func pruneTMData(home string) error {
 		return err
 	}
 
-	// stateStore := state.NewStore(stateDB, state.StoreOptions{
-	// 	DiscardABCIResponses: true,
-	// })
-
-	// base := blockStore.Base()
+	stateStore := state.NewStore(stateDB, state.StoreOptions{
+		DiscardABCIResponses: true,
+	})
 
 	if blocks == 0 {
 		return nil
@@ -309,43 +336,50 @@ func pruneTMData(home string) error {
 		return fmt.Errorf("Your min-retain-blocks %+v is lower than the minimum 100000", blocks)
 	}
 
-	// pruneHeight := blockStore.Height() - int64(blocks)
+	pruneHeight := blockStore.Height() - int64(blocks)
 
-	errs, _ := errgroup.WithContext(context.Background())
-	errs.Go(func() error {
-		// // prune block store
-		// fmt.Println("pruning block store")
-		// if base < pruneHeight {
-		// 	blocks, err = blockStore.PruneBlocks(pruneHeight)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// }
-
-		fmt.Println("compacting block store")
-		if err := blockStoreDB.Compact(nil, nil); err != nil {
+	// prune block store
+	base := blockStore.Base()
+	if base < pruneHeight {
+		state, err := stateStore.LoadFromDBOrGenesisFile("")
+		if err != nil {
 			return err
 		}
 
-		return nil
-	})
-
-	// fmt.Println("pruning state store")
-	// if base < pruneHeight {
-	// 	err = stateStore.PruneStates(base, pruneHeight)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	fmt.Println("compacting state store")
-	if err := stateDB.Compact(nil, nil); err != nil {
-		return err
+		fmt.Println("pruning block store")
+		_, evidenceHeight, err := blockStore.PruneBlocks(pruneHeight, state)
+		if err != nil {
+			return err
+		}
+		fmt.Println("pruning state store")
+		err = stateStore.PruneStates(base, pruneHeight, evidenceHeight)
+		if err != nil {
+			return err
+		}
 	}
 
-	if err := errs.Wait(); err != nil {
-		return err
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		fmt.Println("compacting block store")
+		if err := blockStoreDB.Compact(nil, nil); err != nil {
+			fmt.Printf("compacting block store failed: %+v", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		fmt.Println("compacting state store")
+		if err := stateDB.Compact(nil, nil); err != nil {
+			fmt.Printf("compacting state store failed: %+v", err)
+		}
+	}()
+
+	wg.Wait()
 
 	stateDB.Close()
 	blockStore.Close()

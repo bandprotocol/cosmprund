@@ -667,11 +667,11 @@ func (rs *Store) handlePruning(version int64) error {
 	pruneHeight := rs.pruningManager.GetPruningHeight(version)
 	rs.logger.Debug("prune start", "height", version)
 	defer rs.logger.Debug("prune end", "height", version)
-	return rs.PruneStores(pruneHeight)
+	return rs.PruneStores(0, pruneHeight)
 }
 
 // PruneStores prunes all history upto the specific height of the multi store.
-func (rs *Store) PruneStores(pruningHeight int64) (err error) {
+func (rs *Store) PruneStores(batch int64, pruningHeight int64) (err error) {
 	if pruningHeight <= 0 {
 		rs.logger.Debug("pruning skipped, height is less than or equal to 0")
 		return nil
@@ -690,16 +690,28 @@ func (rs *Store) PruneStores(pruningHeight int64) (err error) {
 
 		store = rs.GetCommitKVStore(key)
 
-		err := store.(*iavl.Store).DeleteVersionsTo(pruningHeight)
-		if err == nil {
-			continue
+		if batch == 0 {
+			batch = pruningHeight
 		}
 
-		if errors.Is(err, iavltree.ErrVersionDoesNotExist) {
-			return err
-		}
+		for i := int64(0); i < pruningHeight; i += batch {
+			j := i + batch
+			if j > pruningHeight {
+				j = pruningHeight
+			}
 
-		rs.logger.Error("failed to prune store", "key", key, "err", err)
+			err := store.(*iavl.Store).DeleteVersionsTo(j)
+			if err == nil {
+				continue
+			}
+
+			if errors.Is(err, iavltree.ErrVersionDoesNotExist) {
+				continue
+			}
+
+			rs.logger.Error("failed to prune store", "key", key, "err", err)
+			break
+		}
 	}
 	return nil
 }
