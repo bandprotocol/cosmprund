@@ -44,21 +44,20 @@ type pruningProfile struct {
 	name         string
 	blocks       uint64
 	keepVersions uint64
-	keepEvery    uint64
 }
 
 var (
 	PruningProfiles = map[string]pruningProfile{
-		"default":    {"default", 0, 400000, 100},
-		"nothing":    {"nothing", 0, 0, 1},
-		"everything": {"everything", 0, 10, 0},
-		"emitter":    {"emitter", 100000, 100, 0},
-		"rest-light": {"rest-light", 600000, 100000, 0},
-		"rest-heavy": {"rest-heavy", 0, 400000, 1000},
-		"peer":       {"peer", 0, 100, 30000},
-		"seed":       {"seed", 100000, 100, 0},
-		"sentry":     {"sentry", 300000, 100, 0},
-		"validator":  {"validator", 100000, 100, 0},
+		"default":    {"default", 0, 400000},
+		"nothing":    {"nothing", 0, 0},
+		"everything": {"everything", 0, 10},
+		"emitter":    {"emitter", 100000, 100},
+		"rest-light": {"rest-light", 600000, 100000},
+		"rest-heavy": {"rest-heavy", 0, 400000},
+		"peer":       {"peer", 0, 100},
+		"seed":       {"seed", 100000, 100},
+		"sentry":     {"sentry", 300000, 100},
+		"validator":  {"validator", 100000, 100},
 	}
 )
 
@@ -81,14 +80,10 @@ func pruneCmd() *cobra.Command {
 				if !cmd.Flag("pruning-keep-recent").Changed {
 					keepVersions = PruningProfiles[profile].keepVersions
 				}
-				if !cmd.Flag("pruning-keep-every").Changed {
-					keepEvery = PruningProfiles[profile].keepEvery
-				}
 			}
 
 			fmt.Println("app:", app)
 			fmt.Println("profile:", profile)
-			fmt.Println("pruning-keep-every:", keepEvery)
 			fmt.Println("pruning-keep-recent:", keepVersions)
 			fmt.Println("min-retain-blocks:", blocks)
 			fmt.Println("batch:", batch)

@@ -18,7 +18,6 @@ var (
 	tendermint   bool
 	blocks       uint64
 	keepVersions uint64
-	keepEvery    uint64
 	batch        int64
 	parallel     uint64
 	profile      string
@@ -54,7 +53,6 @@ func cobraInit(rootCmd *cobra.Command) error {
 	blocks = viper.GetUint64("min-retain-blocks")
 	profile = viper.GetString("pruning")
 	keepVersions = viper.GetUint64("pruning-keep-recent")
-	keepEvery = viper.GetUint64("pruning-keep-every")
 
 	return nil
 }
@@ -100,13 +98,6 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().
 		Uint64Var(&keepVersions, "pruning-keep-recent", 400000, "set the amount of versions to keep in the application store")
 	if err := viper.BindPFlag("pruning-keep-recent", rootCmd.PersistentFlags().Lookup("pruning-keep-recent")); err != nil {
-		panic(err)
-	}
-
-	// --pruning-keep-every flag
-	rootCmd.PersistentFlags().
-		Uint64Var(&keepEvery, "pruning-keep-every", 100, "set the version interval to be kept in the application store (0=None)")
-	if err := viper.BindPFlag("pruning-keep-every", rootCmd.PersistentFlags().Lookup("pruning-keep-every")); err != nil {
 		panic(err)
 	}
 
