@@ -9,20 +9,21 @@ import (
 )
 
 var (
-	homePath     string
-	dataDir      = "data"
-	configDir    = "config/app.toml"
-	backend      string
-	app          string
-	cosmosSdk    bool
-	tendermint   bool
-	blocks       uint64
-	keepVersions uint64
-	batch        int64
-	parallel     uint64
-	profile      string
-	modules      []string
-	appName      = "cosmos-pruner"
+	homePath       string
+	dataDir        = "data"
+	configDir      = "config/app.toml"
+	backend        string
+	app            string
+	cosmosSdk      bool
+	tendermint     bool
+	blocks         uint64
+	keepVersions   uint64
+	batch          int64
+	parallel       uint64
+	profile        string
+	modules        []string
+	resetBlockBase bool
+	appName        = "cosmos-pruner"
 )
 
 func cobraInit(rootCmd *cobra.Command) error {
@@ -148,6 +149,13 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().
 		BoolVar(&tendermint, "tendermint", true, "set to false you dont want to prune tendermint data")
 	if err := viper.BindPFlag("tendermint", rootCmd.PersistentFlags().Lookup("tendermint")); err != nil {
+		panic(err)
+	}
+
+	// --reset-block-base flag
+	rootCmd.PersistentFlags().
+		BoolVar(&resetBlockBase, "reset-block-base", false, "reset the block store base to 1 before pruning, removing all orphaned data below the current base")
+	if err := viper.BindPFlag("reset-block-base", rootCmd.PersistentFlags().Lookup("reset-block-base")); err != nil {
 		panic(err)
 	}
 

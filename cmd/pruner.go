@@ -10,6 +10,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	db "github.com/cometbft/cometbft-db"
+	cmtstore "github.com/cometbft/cometbft/proto/tendermint/store"
 	"github.com/cometbft/cometbft/state"
 	tmstore "github.com/cometbft/cometbft/store"
 
@@ -321,6 +322,19 @@ func pruneTMData(home string) error {
 	if err != nil {
 		return err
 	}
+
+	var oldBase int64
+
+	// If --reset-block-base is set, overwrite the stored base to 1 so that
+	// PruneBlocks will sweep through and delete any orphaned data that exists
+	// below the previously recorded base (e.g. from a failed prior prune).
+	if resetBlockBase {
+		bss := tmstore.LoadBlockStoreState(blockStoreDB)
+		oldBase = bss.Base
+		fmt.Printf("resetting block store base from %d to 1\n", bss.Base)
+		tmstore.SaveBlockStoreState(&cmtstore.BlockStoreState{Base: 1, Height: bss.Height}, blockStoreDB)
+	}
+
 	blockStore := tmstore.NewBlockStore(blockStoreDB)
 
 	// Get StateStore
@@ -333,6 +347,21 @@ func pruneTMData(home string) error {
 		DiscardABCIResponses: true,
 	})
 
+	// Defers run in LIFO order: restore runs first (DB still open), then closes.
+	// If pruning did not complete and the base is still below oldBase (i.e.
+	// PruneBlocks never advanced past it), restore oldBase so the node is not
+	// left pointing to non-existent blocks. If the base already reached or
+	// exceeded oldBase, the store is in a safe state and no restore is needed.
+	defer blockStore.Close()
+	defer stateDB.Close()
+	defer func() {
+		if resetBlockBase && blockStore.Base() < oldBase {
+			fmt.Printf("restoring block store base to %d (pruning did not complete)\n", oldBase)
+			bss := tmstore.LoadBlockStoreState(blockStoreDB)
+			tmstore.SaveBlockStoreState(&cmtstore.BlockStoreState{Base: oldBase, Height: bss.Height}, blockStoreDB)
+		}
+	}()
+
 	if blocks == 0 {
 		return nil
 	}
@@ -341,6 +370,13 @@ func pruneTMData(home string) error {
 	}
 
 	pruneHeight := blockStore.Height() - int64(blocks)
+
+	// If we reset the base to 1, ensure the final prune target is no lower than
+	// the old base — data below it no longer exists and cannot be pruned.
+	if resetBlockBase && oldBase > pruneHeight {
+		fmt.Printf("clamping prune height from %d to old base %d (no data below old base)\n", pruneHeight, oldBase)
+		pruneHeight = oldBase
+	}
 
 	// prune block store
 	base := blockStore.Base()
@@ -387,9 +423,6 @@ func pruneTMData(home string) error {
 	}()
 
 	wg.Wait()
-
-	stateDB.Close()
-	blockStore.Close()
 
 	return nil
 }
