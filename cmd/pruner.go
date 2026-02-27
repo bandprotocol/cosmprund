@@ -10,6 +10,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	db "github.com/cometbft/cometbft-db"
+	cmtstore "github.com/cometbft/cometbft/proto/tendermint/store"
 	"github.com/cometbft/cometbft/state"
 	tmstore "github.com/cometbft/cometbft/store"
 
@@ -321,6 +322,17 @@ func pruneTMData(home string) error {
 	if err != nil {
 		return err
 	}
+
+	// If --reset-block-base is set, overwrite the stored base to 1 so that
+	// PruneBlocks will sweep through and delete any orphaned data that exists
+	// below the previously recorded base (e.g. from a failed prior prune).
+	if resetBlockBase {
+		bss := tmstore.LoadBlockStoreState(blockStoreDB)
+		fmt.Printf("resetting block store base from %d to 1\n", bss.Base)
+		bss.Base = 1
+		tmstore.SaveBlockStoreState(&cmtstore.BlockStoreState{Base: bss.Base, Height: bss.Height}, blockStoreDB)
+	}
+
 	blockStore := tmstore.NewBlockStore(blockStoreDB)
 
 	// Get StateStore
